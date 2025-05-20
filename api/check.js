@@ -3,23 +3,20 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 
-// === CONFIGURATION ===
 const API_URLS = [
     'https://webapi.toyotabharat.com/1.0/api/businessstates',
     'https://webapi.toyotabharat.com/1.0/api/pricestates',
     'https://webapi.toyotabharat.com/1.0/api/price/models'
 ];
-const LOG_FILE = path.join(__dirname, 'logs', 'api-monitor.log');
+const LOG_FILE = path.join(__dirname, '..', 'logs', 'api-monitor.log');
 const EMAIL_RECIPIENTS = ['ajith.kumar@renaissanceind.com'];
-const EMAIL_CC = ['ajithkumarv6969@gamil.com'];
+const EMAIL_CC = ['ajithkumarv6969@gmail.com'];
 const EMAIL_SENDER = 'ajithkulalar2002@gmail.com';
 const EMAIL_PASSWORD = 'qkuz advj ypji xkdd';
 
-// === STATE ===
 let lastOkEmailSentAt = 0;
 const OK_EMAIL_INTERVAL = 30 * 60 * 1000;  // 30 minutes
 
-// === SETUP LOGGING ===
 if (!fs.existsSync(path.dirname(LOG_FILE))) {
     fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 }
@@ -30,7 +27,6 @@ function logToFile(message) {
     fs.appendFileSync(LOG_FILE, logMessage);
 }
 
-// === SETUP EMAIL SENDING ===
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -39,7 +35,6 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-// Email templates for success and error
 const successEmailTemplate = (recipientName, statusCode, apiUrl) => {
     return `
     <p>Dear ${recipientName},</p>
@@ -63,7 +58,6 @@ const errorEmailTemplate = (recipientName, statusCode, errorMessage, apiUrl) => 
     `;
 };
 
-// Email function with log attachment
 async function sendEmail(subject, html) {
     const mailOptions = {
         from: EMAIL_SENDER,
@@ -89,7 +83,6 @@ async function sendEmail(subject, html) {
     }
 }
 
-// === CHECK API STATUS ===
 async function checkApiStatus() {
     for (const API_URL of API_URLS) {
         try {
@@ -111,7 +104,6 @@ async function checkApiStatus() {
             console.log(`✅ API ${API_URL} is working. Status: ${status}`);
             logToFile(`✅ API ${API_URL} is working. Status: ${status}`);
 
-            // Send email if API is working and it's time to send an email
             if (now - lastOkEmailSentAt > OK_EMAIL_INTERVAL) {
                 await sendEmail('✅ Toyota API is working fine', successEmailTemplate('Ajith', status, API_URL));
                 lastOkEmailSentAt = now;
@@ -123,18 +115,17 @@ async function checkApiStatus() {
             console.log(`❌ API ${API_URL} check failed. Status: ${status}, Error: ${message}`);
             logToFile(`❌ API ${API_URL} check failed. Status: ${status}, Error: ${message}`);
 
-            // Send email for error
             await sendEmail('🚨 Toyota API is DOWN', errorEmailTemplate('Ajith', status, message, API_URL));
         }
     }
 }
 
-// === SCHEDULER ===
-console.log("🔁 Starting Toyota API Monitor... (checks every 1 minute)");
-logToFile("🚀 Monitor started");
-
-// Run first check immediately
-checkApiStatus();
-
-// Schedule subsequent checks every minute
-setInterval(checkApiStatus, 60 * 1000);
+// Vercel handler for API requests
+module.exports = async (req, res) => {
+    if (req.method === 'GET') {
+        await checkApiStatus();
+        res.status(200).json({ message: 'API status checked successfully' });
+    } else {
+        res.status(405).json({ message: 'Method Not Allowed' });
+    }
+};
